@@ -1,0 +1,4 @@
+config globals 'globals'
+	option enabled '0'
+	option proxy_backend 'daed'
+	option autorate_enabled '0'

@@ -1,0 +1,36 @@
+name: Build OpenWrt Packages
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ x86_64, aarch64_generic ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build with SDK
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: ${{ matrix.arch }}
+          FEEDNAME: netoptimizer_feed
+          PACKAGES: openwrt-netoptimizer
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p out
+          find bin/packages -type f \( -name '*.apk' -o -name '*.ipk' \) -exec cp {} out/ \; 2>/dev/null || true
+          ls -la out/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: netoptimizer-${{ matrix.arch }}
+          path: out/*
