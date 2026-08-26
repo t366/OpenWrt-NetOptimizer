@@ -54,7 +54,8 @@ jobs:
         run: |
           sed -i '/DAE_USE_VMLINUX_BTF:vmlinux-btf/d; /DAED_USE_VMLINUX_BTF:vmlinux-btf/d' \
             feeds/daede/dae/Makefile feeds/daede/daed/Makefile
-          ! grep -q 'vmlinux-btf' feeds/daede/dae/Makefile feeds/daede/daed/Makefile
+          ! grep -q 'USE_VMLINUX_BTF:vmlinux-btf' \
+            feeds/daede/dae/Makefile feeds/daede/daed/Makefile
 
       - name: Configure
         working-directory: sdk
