@@ -6,39 +6,86 @@ on:
     tags: [ 'v*' ]
   pull_request:
 
+env:
+  OPENWRT_VERSION: 25.12.5
+
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        arch: [ x86_64, aarch64_generic ]
+        include:
+          - arch: x86_64
+            target: x86/64
+          - arch: aarch64_generic
+            target: armsr/armv8
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build with SDK
-        uses: openwrt/gh-action-sdk@main
-        env:
-          ARCH: ${{ matrix.arch }}
-          FEEDNAME: netoptimizer_feed
-          PACKAGES: openwrt-netoptimizer
-          EXTRA_FEEDS: src-git|daede|https://github.com/kenzok8/openwrt-daede
-          V: s
+      - name: Install host dependencies
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install \
+            build-essential clang flex bison gawk gettext git \
+            libncurses-dev libssl-dev rsync unzip zlib1g-dev file wget zstd xz-utils
+
+      - name: Download SDK
+        run: |
+          BASE="https://downloads.openwrt.org/releases/${OPENWRT_VERSION}/targets/${{ matrix.target }}"
+          FILE="$(curl -s "$BASE/" | grep -oE "openwrt-sdk-${OPENWRT_VERSION}-[^\"]*\.tar\.zst" | head -n1)"
+          [ -n "$FILE" ] || { echo "::error::SDK tarball not found at $BASE"; exit 1; }
+          echo "downloading $FILE"
+          curl -sSL -o sdk.tar.zst "$BASE/$FILE"
+          tar --zstd -xf sdk.tar.zst
+          rm -f sdk.tar.zst
+          mv openwrt-sdk-* sdk
+
+      - name: Configure feeds
+        working-directory: sdk
+        run: |
+          cp feeds.conf.default feeds.conf
+          echo 'src-git daede https://github.com/kenzok8/openwrt-daede' >> feeds.conf
+          ./scripts/feeds update -a
+          ./scripts/feeds install openwrt-netoptimizer
+
+      - name: Patch daede feed
+        working-directory: sdk
+        run: |
+          sed -i '/DAE_USE_VMLINUX_BTF:vmlinux-btf/d; /DAED_USE_VMLINUX_BTF:vmlinux-btf/d' \
+            feeds/daede/dae/Makefile feeds/daede/daed/Makefile
+          ! grep -q 'vmlinux-btf' feeds/daede/dae/Makefile feeds/daede/daed/Makefile
+
+      - name: Configure
+        working-directory: sdk
+        run: |
+          echo 'CONFIG_PACKAGE_openwrt-netoptimizer=m' >> .config
+          make defconfig
+          grep -q '^CONFIG_PACKAGE_openwrt-netoptimizer=m$' .config \
+            || { echo "::error::openwrt-netoptimizer was deselected - unresolvable dependencies"; exit 1; }
+          grep -q '^CONFIG_PACKAGE_vmlinux-btf' .config \
+            && { echo "::error::vmlinux-btf still selected"; exit 1; } || true
+
+      - name: Build
+        working-directory: sdk
+        run: make -j"$(nproc)" package/openwrt-netoptimizer/compile V=s
 
       - name: Upload build logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: build-logs-${{ matrix.arch }}
-          path: logs/
+          path: |
+            sdk/logs/
+            sdk/logs/**
           if-no-files-found: ignore
 
       - name: Collect artifacts
         run: |
           mkdir -p out
-          find bin/packages bin/targets -type f \( -name '*.apk' -o -name '*.ipk' \) -exec cp {} out/ \;
+          find sdk/bin -type f \( -name '*.apk' -o -name '*.ipk' \) -exec cp {} out/ \;
           if [ -z "$(ls -A out 2>/dev/null)" ]; then
-            echo "::error::no packages produced - check build log for deselected dependencies"
+            echo "::error::no packages produced"
             exit 1
           fi
           ls -la out/
