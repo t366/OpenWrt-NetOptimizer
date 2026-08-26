@@ -48,18 +48,24 @@ jobs:
         working-directory: sdk
         run: |
           cp feeds.conf.default feeds.conf
+          sed -i -e 's,https://git.openwrt.org/feed/,https://github.com/openwrt/,' \
+                 -e 's,https://git.openwrt.org/openwrt/,https://github.com/openwrt/,' \
+                 -e 's,https://git.openwrt.org/project/,https://github.com/openwrt/,' \
+            feeds.conf
           echo 'src-git daede https://github.com/kenzok8/openwrt-daede' >> feeds.conf
           ./scripts/feeds update -a
           ./scripts/feeds install \
             nlbwmon luci-app-nlbwmon v2ray-geoip v2ray-geosite \
-            pbr luci-app-pbr sqm-scripts luci-app-sqm \
+            pbr luci-app-pbr sqm-scripts luci-app-sqm dnsmasq \
             dae daed luci-app-daede
 
       - name: Patch daede feed
         working-directory: sdk
         run: |
-          sed -i '/DAE_USE_VMLINUX_BTF:vmlinux-btf/d; /DAED_USE_VMLINUX_BTF:vmlinux-btf/d' \
+          sed -i 's/+DAE_USE_VMLINUX_BTF:vmlinux-btf//; s/+DAED_USE_VMLINUX_BTF:vmlinux-btf//' \
             feeds/daede/dae/Makefile feeds/daede/daed/Makefile
+          rm -rf feeds/daede/vmlinux-btf
+          rm -rf feeds/daede.index feeds/daede.targetindex feeds/daede.tmp
           ! grep -q 'USE_VMLINUX_BTF:vmlinux-btf' \
             feeds/daede/dae/Makefile feeds/daede/daed/Makefile
 
