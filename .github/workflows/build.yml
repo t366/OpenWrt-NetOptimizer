@@ -41,13 +41,19 @@ jobs:
           rm -f sdk.tar.zst
           mv openwrt-sdk-* sdk
 
+      - name: Install package into SDK
+        run: cp -r openwrt-netoptimizer sdk/package/
+
       - name: Configure feeds
         working-directory: sdk
         run: |
           cp feeds.conf.default feeds.conf
           echo 'src-git daede https://github.com/kenzok8/openwrt-daede' >> feeds.conf
           ./scripts/feeds update -a
-          ./scripts/feeds install openwrt-netoptimizer
+          ./scripts/feeds install \
+            nlbwmon luci-app-nlbwmon v2ray-geoip v2ray-geosite \
+            pbr luci-app-pbr sqm-scripts luci-app-sqm \
+            dae daed luci-app-daede
 
       - name: Patch daede feed
         working-directory: sdk
