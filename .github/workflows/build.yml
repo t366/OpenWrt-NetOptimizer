@@ -22,11 +22,17 @@ jobs:
           ARCH: ${{ matrix.arch }}
           FEEDNAME: netoptimizer_feed
           PACKAGES: openwrt-netoptimizer
+          EXTRA_FEEDS: src-git daede https://github.com/kenzok8/openwrt-daede
+          V: s
 
       - name: Collect artifacts
         run: |
           mkdir -p out
-          find bin/packages -type f \( -name '*.apk' -o -name '*.ipk' \) -exec cp {} out/ \; 2>/dev/null || true
+          find bin/packages bin/targets -type f \( -name '*.apk' -o -name '*.ipk' \) -exec cp {} out/ \;
+          if [ -z "$(ls -A out 2>/dev/null)" ]; then
+            echo "::error::no packages produced - check build log for deselected dependencies"
+            exit 1
+          fi
           ls -la out/
 
       - name: Upload artifacts
