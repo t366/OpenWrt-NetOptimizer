@@ -81,7 +81,7 @@ jobs:
 
       - name: Build
         working-directory: sdk
-        run: make -j"$(nproc)" package/openwrt-netoptimizer/compile V=s
+        run: make -j"$(nproc)" BUILD_LOG=1 package/openwrt-netoptimizer/compile V=s
 
       - name: Upload build logs
         if: failure()
